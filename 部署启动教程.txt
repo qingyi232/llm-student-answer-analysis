@@ -1,0 +1,248 @@
+==============================================================
+  基于大模型的学生主观题答案自动分析与反馈生成系统 (CASA)
+  详细部署启动教程
+==============================================================
+
+==============================================================
+
+
+目录
+--------------------------------------------------------------
+  一、需要下载安装的软件（共3个）
+  二、后端部署（Python + Flask）
+  三、前端部署（Node.js + Vue3）
+  四、使用 PyCharm/IDEA 部署（可选）
+  五、系统访问与测试
+  六、常见问题排查
+==============================================================
+
+
+一、需要下载安装的软件（共3个）
+--------------------------------------------------------------
+
+【1】Python 3.8+（推荐 3.10 或 3.11）
+  下载地址: https://www.python.org/downloads/
+  直接下载: https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe
+
+  安装步骤:
+  1. 双击安装包
+  2. 勾选底部的 "Add python.exe to PATH"（非常重要！）
+  3. 点击 "Install Now" 等待安装完成
+  4. 验证: 打开 CMD，输入 python --version，显示版本号即成功
+
+【2】Node.js 16+（推荐 18 LTS）
+  下载地址: https://nodejs.org/
+  直接下载: https://nodejs.org/dist/v18.20.2/node-v18.20.2-x64.msi
+
+  安装步骤:
+  1. 双击安装包，一路 Next 即可
+  2. 安装完成后会自动添加到 PATH
+  3. 验证: 打开 CMD，输入 node --version 和 npm --version，显示版本号即成功
+
+【3】PyCharm Community（免费版，用于部署后端）或 VS Code
+  PyCharm 下载: https://www.jetbrains.com/pycharm/download/
+  选择 "Community" 免费版即可
+  
+  VS Code 下载: https://code.visualstudio.com/download
+  （二选一即可，下面以 PyCharm 为例）
+
+  安装: 双击安装包，一路 Next 即可
+
+
+==============================================================
+二、后端部署（Python + Flask）
+==============================================================
+
+【步骤1】打开命令行
+  按 Win+R，输入 cmd，回车打开命令提示符
+
+【步骤2】进入后端目录
+  假设项目解压到 D:\project\ 目录下：
+  
+  cd D:\project\基于大模型的学生主观题答案自动分析与反馈生成系统\backend
+
+【步骤3】安装 Python 依赖
+  pip install -r requirements.txt
+
+  如果速度慢，可以使用国内镜像:
+  pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+  安装的依赖包括:
+  - flask          (Web 框架)
+  - flask-cors     (跨域支持)
+  - flask-sqlalchemy (数据库 ORM)
+  - flask-jwt-extended (JWT 认证)
+  - openai         (DeepSeek 大模型 API 客户端)
+
+【步骤4】启动后端服务
+  python app.py
+
+  看到以下输出表示启动成功:
+  ---
+  示例数据初始化完成！
+  * Serving Flask app 'app'
+  * Running on http://127.0.0.1:5000
+  ---
+
+  注意:
+  - 首次启动会自动创建 SQLite 数据库 (casa.db)
+  - 会自动初始化示例数据（12个用户、3门课程、7道题目、3个作业、7份答案）
+  - 后端默认运行在 http://localhost:5000
+  - 不要关闭这个命令行窗口，否则后端会停止
+
+
+==============================================================
+三、前端部署（Node.js + Vue3）
+==============================================================
+
+【步骤1】新开一个命令行窗口
+  再按 Win+R，输入 cmd，回车
+
+【步骤2】进入前端目录
+  cd D:\project\基于大模型的学生主观题答案自动分析与反馈生成系统\frontend
+
+【步骤3】安装前端依赖
+  npm install
+
+  如果速度慢，可以先设置镜像:
+  npm config set registry https://registry.npmmirror.com
+  npm install
+
+  安装的依赖包括:
+  - vue 3          (前端框架)
+  - element-plus   (UI 组件库)
+  - echarts        (图表库)
+  - axios          (HTTP 请求库)
+  - vue-router     (路由管理)
+  - pinia          (状态管理)
+
+【步骤4】启动前端开发服务器
+  npm run dev
+
+  看到以下输出表示启动成功:
+  ---
+  VITE v5.4.21  ready in 1921 ms
+  ➜  Local:   http://localhost:3006/
+  ---
+
+  注意:
+  - 前端默认运行在 http://localhost:3006
+  - 不要关闭这个命令行窗口
+
+【步骤5】访问系统
+  打开浏览器（推荐 Chrome），访问:
+  http://localhost:3006
+
+
+==============================================================
+四、使用 PyCharm/IDEA 部署（可选方式）
+==============================================================
+
+如果你更习惯使用 IDE，可以按照以下步骤:
+
+--- 后端（PyCharm）---
+
+1. 打开 PyCharm
+2. 点击 File → Open → 选择 "backend" 文件夹
+3. PyCharm 会自动检测到 requirements.txt
+4. 如果弹出提示安装依赖，点击 "Install"
+5. 如果没有弹出，手动安装:
+   - 打开底部 Terminal 终端
+   - 输入: pip install -r requirements.txt
+6. 找到 app.py 文件，右键点击 → Run 'app'
+7. 在底部 Run 窗口看到 "Running on http://127.0.0.1:5000" 即成功
+
+--- 前端（VS Code 或 WebStorm）---
+
+1. 打开 VS Code / WebStorm
+2. File → Open Folder → 选择 "frontend" 文件夹
+3. 打开 Terminal 终端（快捷键: Ctrl + `）
+4. 输入: npm install
+5. 等待安装完成后输入: npm run dev
+6. 看到 "Local: http://localhost:3006" 即成功
+
+--- 使用 IntelliJ IDEA ---
+
+1. 打开 IDEA
+2. File → Open → 选择整个项目根目录
+3. 后端:
+   - 在底部 Terminal 输入: cd backend
+   - 输入: pip install -r requirements.txt
+   - 输入: python app.py
+4. 前端:
+   - 新开一个 Terminal 标签
+   - 输入: cd frontend
+   - 输入: npm install
+   - 输入: npm run dev
+
+
+==============================================================
+五、系统访问与测试
+==============================================================
+
+【系统地址】
+  http://localhost:3006
+
+【测试账号】
+
+  管理员:
+    用户名: admin       密码: 123456
+
+  教师（3个）:
+    用户名: teacher1    密码: 123456    姓名: 王建国
+    用户名: teacher2    密码: 123456    姓名: 李明珠
+    用户名: teacher3    密码: 123456    姓名: 张秀英
+
+  学生（8个）:
+    用户名: student1    密码: 123456    姓名: 陈思远
+    用户名: student2    密码: 123456    姓名: 刘雨萱
+    ...student3~student8 密码均为 123456
+
+【功能验证流程】
+
+  1. 用 admin 登录 → 查看工作台统计 → 用户管理 → 数据统计 → 系统监控
+  2. 用 teacher1 登录 → 课程管理 → 题库管理 → 作业管理 → AI批阅中心
+     - 在 AI 批阅中心选择一个作业
+     - 点击 "一键批量分析" 或单个 "AI分析"
+     - 点击 "查看结果" 查看三维评分
+     - 点击 "审核" 可以添加教师评语和调分
+     - 点击 "导出结果" 导出 CSV 文件
+  3. 用 student1 登录 → 我的作业 → 点击答题 → 反馈报告 → 学习分析
+     - 在反馈报告中点击 "导出" 可下载分析报告
+
+
+==============================================================
+六、常见问题排查
+==============================================================
+
+Q1: pip install 报错 "pip 不是内部命令"
+A: Python 安装时没有勾选 "Add to PATH"。
+   重新安装 Python，记得勾选 "Add python.exe to PATH"。
+
+Q2: npm install 报错
+A: 可能是 Node.js 版本太低。确保版本 >= 16。
+   或者设置国内镜像: npm config set registry https://registry.npmmirror.com
+
+Q3: 前端启动后页面空白
+A: 确保后端已经先启动（端口5000）。前端通过代理转发 API 请求到后端。
+
+Q4: AI 分析超时或失败
+A: 系统使用 DeepSeek 大模型 API 进行真实分析。
+   - 首次分析可能需要 5-30 秒
+   - 如果 API 不可用，系统会自动降级为本地规则分析
+   - 确保电脑可以访问外网
+
+Q5: 如何重置所有数据
+A: 删除 backend/casa.db 文件，然后重启后端即可。
+   系统会自动重新初始化示例数据。
+
+Q6: 端口冲突
+A: 如果 5000 或 3006 端口被占用：
+   - 后端: 修改 app.py 最后一行的 port=5000 改为其他端口
+   - 前端: 修改 frontend/vite.config.js 中的 port 配置
+
+
+==============================================================
+  文档结束
+
+==============================================================

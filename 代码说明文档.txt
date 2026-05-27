@@ -1,0 +1,417 @@
+==============================================================
+  基于大模型的学生主观题答案自动分析与反馈生成系统 (CASA)
+  代码说明文档
+==============================================================
+
+  技术栈: Python Flask + Vue3 + Element Plus + ECharts + SQLite
+  AI 引擎: DeepSeek Chat API + KLE 三维评价框架
+==============================================================
+
+
+目录
+--------------------------------------------------------------
+  一、项目总体架构
+  二、目录结构说明
+  三、后端代码说明
+  四、前端代码说明
+  五、数据库设计
+  六、API 接口文档
+  七、核心算法说明
+  八、技术选型说明
+==============================================================
+
+
+一、项目总体架构
+--------------------------------------------------------------
+
+  浏览器 (Vue3 + Element Plus)
+      |
+      | HTTP (Vite Proxy: /api → localhost:5000)
+      |
+  Flask API 服务 (端口 5000)
+      |
+      |--- SQLite 数据库 (casa.db)
+      |--- DeepSeek LLM API (远程调用)
+      |--- KLE 三维评价引擎 (llm_service.py)
+
+  三层架构:
+  - 表现层 (frontend/): Vue3 + Element Plus + ECharts
+  - 业务层 (backend/app.py): Flask REST API
+  - 数据层 (backend/models.py): SQLAlchemy ORM + SQLite
+
+
+==============================================================
+二、目录结构说明
+==============================================================
+
+项目根目录/
+  |
+  |-- backend/                    # 后端目录
+  |   |-- app.py                  # 主应用文件（所有 API 路由 + 数据初始化）
+  |   |-- models.py               # 数据库模型定义（9 张表）
+  |   |-- llm_service.py          # 大模型分析服务（DeepSeek API + 降级方案）
+  |   |-- config.py               # 配置文件（数据库路径、JWT密钥、API Key）
+  |   |-- requirements.txt        # Python 依赖列表
+  |   |-- casa.db                 # SQLite 数据库文件（自动生成）
+  |
+  |-- frontend/                   # 前端目录
+  |   |-- src/
+  |   |   |-- main.js             # 应用入口（全局配置、图标注册）
+  |   |   |-- App.vue             # 根组件
+  |   |   |-- style.css           # 全局样式（CSS 变量、主题色）
+  |   |   |-- api/
+  |   |   |   |-- index.js        # API 封装（axios 实例 + 所有接口定义）
+  |   |   |-- router/
+  |   |   |   |-- index.js        # 路由配置（12 个页面路由 + 权限守卫）
+  |   |   |-- layout/
+  |   |   |   |-- MainLayout.vue  # 主布局（侧边栏 + 顶栏 + 内容区）
+  |   |   |-- views/
+  |   |       |-- Login.vue       # 登录页
+  |   |       |-- Dashboard.vue   # 工作台（三角色仪表盘 + ECharts 图表）
+  |   |       |-- teacher/
+  |   |       |   |-- Courses.vue     # 课程管理（CRUD）
+  |   |       |   |-- Questions.vue   # 题库管理（CRUD + 题型筛选）
+  |   |       |   |-- Assignments.vue # 作业管理（发布 + 选题）
+  |   |       |   |-- Grading.vue     # AI 智能批阅中心（核心页面）
+  |   |       |-- student/
+  |   |       |   |-- MyAssignments.vue  # 我的作业列表
+  |   |       |   |-- AnswerSheet.vue    # 在线答题页面
+  |   |       |   |-- MyFeedback.vue     # 反馈报告（AI 分析详情）
+  |   |       |   |-- MyAnalysis.vue     # 学习分析（雷达图 + 饼图）
+  |   |       |-- admin/
+  |   |           |-- Users.vue       # 用户管理（CRUD + 搜索筛选）
+  |   |           |-- Statistics.vue  # 数据统计（ECharts 图表）
+  |   |           |-- Monitor.vue     # 系统监控（服务状态 + 日志）
+  |   |-- vite.config.js          # Vite 配置（端口 3006、代理转发）
+  |   |-- package.json            # 前端依赖列表
+  |
+  |-- 部署启动教程.txt              # 部署说明
+  |-- 代码说明文档.txt              # 本文档
+  |-- 测试账密.txt                  # 测试账号
+  |-- 需求文档                      # 毕设需求任务书
+
+
+==============================================================
+三、后端代码说明
+==============================================================
+
+--- app.py (主应用，约 1050 行) ---
+
+  1. 认证 API (第 18-60 行)
+     POST /api/auth/login      登录，返回 JWT Token
+     GET  /api/auth/info       获取当前用户信息
+     POST /api/auth/register   注册新用户
+
+  2. 用户管理 API (第 64-103 行)
+     GET    /api/users          查询用户列表（支持角色筛选、关键词搜索）
+     PUT    /api/users/<id>     更新用户信息
+     DELETE /api/users/<id>     删除用户（含级联删除选课记录）
+
+  3. 课程 API (第 107-185 行)
+     GET    /api/courses              获取课程列表（按角色过滤）
+     POST   /api/courses              创建课程
+     PUT    /api/courses/<id>         编辑课程
+     DELETE /api/courses/<id>         删除课程（含级联删除选课记录）
+     GET    /api/courses/<id>/students  获取课程学生
+     POST   /api/courses/<id>/enroll    学生加入课程
+
+  4. 题目 API (第 189-258 行)
+     GET    /api/questions       查询题目（支持课程、题型筛选）
+     POST   /api/questions       创建题目
+     GET    /api/questions/<id>  获取题目详情
+     PUT    /api/questions/<id>  更新题目
+     DELETE /api/questions/<id>  删除题目（含级联删除作业关联）
+
+  5. 作业 API (第 262-345 行)
+     GET    /api/assignments           获取作业列表（按角色过滤）
+     POST   /api/assignments           创建作业（关联题目）
+     GET    /api/assignments/<id>      获取作业详情（含关联题目）
+     DELETE /api/assignments/<id>      删除作业（含级联删除关联）
+
+  6. 学生答题 API (第 349-438 行)
+     POST /api/answers/submit        提交单个答案
+     POST /api/answers/batch-submit  批量提交答案
+     GET  /api/answers               查询答案列表（含分析结果和反馈）
+
+  7. AI 分析 API (第 442-581 行)
+     POST /api/analysis/analyze       单题 AI 分析（调用 DeepSeek API）
+     POST /api/analysis/batch         批量 AI 分析
+     GET  /api/analysis/<answer_id>   获取分析结果
+
+  8. 教师审核 API (第 585-600 行)
+     PUT /api/feedback/<id>/review   教师审核反馈（评语 + 调分）
+
+  9. 系统监控 API (第 604-678 行)
+     GET /api/monitor/status   获取系统运行状态（真实数据）
+
+  10. 导出 API (第 682-810 行)
+      GET /api/export/grading-csv           导出批阅结果为 CSV
+      GET /api/export/feedback-report/<id>  导出个人反馈报告为 TXT
+
+  11. 统计 API (第 814-870 行)
+      GET /api/stats/dashboard         仪表盘统计（三角色）
+      GET /api/stats/score-distribution  成绩分布
+      GET /api/stats/dimension-avg       三维能力均值
+
+  12. 数据初始化 (第 880-1050 行)
+      init_sample_data() 函数：自动创建 12 个用户、3 门课程、7 道题目、
+      3 个作业、7 份学生答案及 AI 分析结果
+
+--- models.py (数据模型，约 260 行) ---
+
+  定义了 9 个数据模型（对应 9 张数据库表），每个模型包含：
+  - 字段定义（Column）
+  - 关系定义（relationship）
+  - to_dict() 序列化方法
+
+--- llm_service.py (LLM 分析服务，约 230 行) ---
+
+  核心函数:
+  - analyze_answer()       主入口函数，优先调用 DeepSeek API
+  - _llm_analyze()         DeepSeek API 调用（构造 Prompt + 解析 JSON）
+  - _parse_llm_json()      从 LLM 输出中提取结构化 JSON
+  - _local_fallback_*()    本地降级分析（API 不可用时使用）
+
+--- config.py (配置文件) ---
+
+  - SQLALCHEMY_DATABASE_URI  数据库路径
+  - JWT_SECRET_KEY           JWT 密钥
+  - DEEPSEEK_API_KEY         DeepSeek API 密钥
+  - DEEPSEEK_BASE_URL        DeepSeek API 地址
+  - DEEPSEEK_MODEL           使用的模型名称
+
+
+==============================================================
+四、前端代码说明
+==============================================================
+
+--- api/index.js (API 封装) ---
+
+  axios 实例配置:
+  - baseURL: /api（通过 Vite 代理转发到后端）
+  - 请求拦截: 自动附加 JWT Token
+  - 响应拦截: 统一错误处理，401 自动跳转登录
+
+  API 模块:
+  - authApi       认证（login/register/getInfo）
+  - userApi       用户管理（getList/update/delete）
+  - courseApi      课程管理（CRUD + 选课）
+  - questionApi    题目管理（CRUD + 筛选）
+  - assignmentApi  作业管理（CRUD）
+  - answerApi      答题（submit/batchSubmit/getList）
+  - analysisApi    AI 分析（analyze/batchAnalyze/getResult）
+  - feedbackApi    教师审核（review）
+  - statsApi       统计（dashboard/scoreDistribution/dimensionAvg）
+  - monitorApi     系统监控（getStatus）
+  - exportApi      导出（gradingCsv/feedbackReport）
+
+--- router/index.js (路由配置) ---
+
+  12 个页面路由，支持角色权限控制（meta.role）
+  路由守卫: 未登录自动跳转到 /login
+
+--- layout/MainLayout.vue (主布局) ---
+
+  三区域布局:
+  - 左侧边栏: 根据角色显示不同菜单（教师/学生/管理员）
+  - 顶部导航: 折叠按钮、页面标题、角色标签、用户信息
+  - 内容区域: 路由视图 + 过渡动画
+
+--- 教师端页面 ---
+
+  Courses.vue:     卡片式课程展示，支持 CRUD
+  Questions.vue:   表格式题库管理，支持课程和题型筛选
+  Assignments.vue: 作业发布，支持多题选择和截止时间
+  Grading.vue:     AI 批阅核心页面，支持单题/批量分析、三维评分展示、
+                   教师审核调分、CSV 导出
+
+--- 学生端页面 ---
+
+  MyAssignments.vue: 作业列表，显示提交状态
+  AnswerSheet.vue:   在线答题，支持多题作答和批量提交
+  MyFeedback.vue:    反馈报告详情，含三维评分、亮点、不足、建议
+  MyAnalysis.vue:    学习分析，含雷达图、饼图、答题记录表
+
+--- 管理端页面 ---
+
+  Users.vue:      用户增删改查，支持角色筛选和关键词搜索
+  Statistics.vue: 全局数据统计，柱状图 + 雷达图
+  Monitor.vue:    系统监控，服务状态 + 操作日志 + LLM 引擎状态
+
+
+==============================================================
+五、数据库设计（9 张表）
+==============================================================
+
+1. users (用户表)
+   - id, username, password_hash, real_name, role
+   - email, phone, avatar_url, student_no, department, created_at
+
+2. courses (课程表)
+   - id, name, code, teacher_id(FK), description
+   - subject, cover_url, student_count, created_at
+
+3. course_students (选课关联表)
+   - id, course_id(FK), student_id(FK), enrolled_at
+
+4. questions (题目表)
+   - id, course_id(FK), teacher_id(FK), title, content
+   - question_type, subject, reference_answer, grading_criteria
+   - max_score, knowledge_points(JSON), difficulty, created_at
+
+5. assignments (作业表)
+   - id, course_id(FK), title, description, deadline, status, created_at
+
+6. assignment_questions (作业-题目关联表)
+   - id, assignment_id(FK), question_id(FK), order_num, score_weight
+
+7. student_answers (学生答案表)
+   - id, student_id(FK), question_id(FK), assignment_id(FK)
+   - answer_content, word_count, submit_time, status
+
+8. analysis_results (分析结果表)
+   - id, answer_id(FK), overall_score
+   - knowledge_score, logic_score, expression_score
+   - knowledge_details(JSON), logic_details(JSON), expression_details(JSON)
+   - error_points(JSON), highlights(JSON), analysis_time_ms
+   - model_used, created_at
+
+9. feedbacks (反馈表)
+   - id, analysis_id(FK), overall_feedback
+   - strengths(JSON), weaknesses(JSON)
+   - improvement_suggestions(JSON), recommended_resources(JSON)
+   - study_tips, teacher_comment, teacher_score_adjustment
+   - is_teacher_reviewed, created_at
+
+
+==============================================================
+六、API 接口文档
+==============================================================
+
+所有 API 前缀: /api
+认证方式: Bearer Token（JWT）
+请求头: Authorization: Bearer <token>
+
+--- 认证 ---
+POST /api/auth/login          { username, password } → { token, user }
+GET  /api/auth/info           → { user }
+POST /api/auth/register       { username, password, real_name, role, ... } → { user }
+
+--- 用户 ---
+GET    /api/users?role=&keyword=    → [user]
+PUT    /api/users/:id               { real_name, email, ... } → { user }
+DELETE /api/users/:id               → { msg }
+
+--- 课程 ---
+GET    /api/courses                 → [course]
+POST   /api/courses                 { name, code, subject, description } → { course }
+PUT    /api/courses/:id             { name, ... } → { course }
+DELETE /api/courses/:id             → { msg }
+GET    /api/courses/:id/students    → [user]
+POST   /api/courses/:id/enroll      { student_id } → { msg }
+
+--- 题目 ---
+GET    /api/questions?course_id=&question_type=  → [question]
+POST   /api/questions               { course_id, title, content, ... } → { question }
+GET    /api/questions/:id           → { question }
+PUT    /api/questions/:id           { title, ... } → { question }
+DELETE /api/questions/:id           → { msg }
+
+--- 作业 ---
+GET    /api/assignments?course_id=  → [assignment]
+POST   /api/assignments             { course_id, title, question_ids, deadline } → { assignment }
+GET    /api/assignments/:id         → { assignment + questions }
+DELETE /api/assignments/:id         → { msg }
+
+--- 答题 ---
+POST /api/answers/submit            { question_id, assignment_id, answer_content } → { answer }
+POST /api/answers/batch-submit      { answers: [...] } → [answer]
+GET  /api/answers?assignment_id=    → [answer + analysis + feedback]
+
+--- AI 分析 ---
+POST /api/analysis/analyze          { answer_id } → { analysis, feedback }
+POST /api/analysis/batch            { answer_ids: [...] } → [{ answer_id, status }]
+GET  /api/analysis/:answer_id       → { answer, analysis, feedback }
+
+--- 审核 ---
+PUT /api/feedback/:id/review        { teacher_comment, teacher_score_adjustment } → { feedback }
+
+--- 统计 ---
+GET /api/stats/dashboard            → { 角色对应的统计数据 }
+GET /api/stats/score-distribution   → { '0-59': n, '60-69': n, ... }
+GET /api/stats/dimension-avg        → { knowledge, logic, expression }
+
+--- 监控 ---
+GET /api/monitor/status             → { uptime, services, logs, avg_analysis_time, ... }
+
+--- 导出 ---
+GET /api/export/grading-csv?assignment_id=  → CSV 文件下载
+GET /api/export/feedback-report/:answer_id  → TXT 报告下载
+
+
+==============================================================
+七、核心算法说明
+==============================================================
+
+【KLE 三维评价框架】
+
+  K - Knowledge (知识覆盖度) 权重 40%
+    评估学生答案对知识点的覆盖率和概念准确性
+    指标: covered_points, missed_points, coverage_rate, accuracy_rate
+
+  L - Logic (逻辑链完整性) 权重 35%
+    评估论证结构、推理链条和论据支撑
+    指标: structure_score, reasoning_score, coherence_score
+
+  E - Expression (语言表达准确性) 权重 25%
+    评估学术用语、流畅度和简洁度
+    指标: fluency_score, terminology_score, conciseness_score
+
+  综合得分 = K_score * 0.4 + L_score * 0.35 + E_score * 0.25
+
+【DeepSeek API 调用流程】
+
+  1. 构造 System Prompt（定义 KLE 框架和 JSON 输出格式）
+  2. 构造 User Prompt（题目 + 参考答案 + 评分标准 + 学生答案）
+  3. 调用 DeepSeek Chat API（temperature=0.3 保证稳定性）
+  4. 解析返回的 JSON 结构
+  5. 计算加权综合分
+  6. 生成个性化反馈（亮点、不足、建议、推荐资源）
+
+【降级策略】
+
+  当 DeepSeek API 不可用时，自动降级为本地规则分析:
+  - 基于答案长度/参考答案长度比值计算基础质量
+  - 关键词匹配评估逻辑性（首先、其次、因此等）
+  - 学术术语检测评估表达性
+  - 确保系统在任何网络环境下都能正常工作
+
+
+==============================================================
+八、技术选型说明
+==============================================================
+
+后端:
+  - Flask 3.0        轻量级 Web 框架
+  - SQLAlchemy        ORM 数据库操作
+  - Flask-JWT-Extended JWT 认证
+  - OpenAI SDK        兼容 DeepSeek API 调用
+  - SQLite            零配置嵌入式数据库
+
+前端:
+  - Vue 3             渐进式前端框架
+  - Element Plus      企业级 UI 组件库
+  - ECharts           数据可视化图表库
+  - Axios             HTTP 请求库
+  - Vue Router        前端路由管理
+  - Pinia             状态管理
+  - Vite              构建工具
+
+AI:
+  - DeepSeek Chat API  大语言模型
+  - KLE Framework      三维评价框架
+
+
+==============================================================
+  文档结束
+==============================================================
